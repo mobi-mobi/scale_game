@@ -5,20 +5,39 @@ import { buildFretboard } from './music/fretboard';
 import { Fretboard } from './components/Fretboard';
 import { TuningSelector } from './components/TuningSelector';
 import { NoteFilter } from './components/NoteFilter';
+import { ScaleSelector } from './components/ScaleSelector';
 import './index.css';
 
 const FRET_COUNT = 12;
+
+interface ActiveScale {
+  root: Note;
+  name: string;
+}
 
 export default function App() {
   const [tuning, setTuning] = useState<Tuning>([...DEFAULT_TUNING.strings]);
   const [activeNotes, setActiveNotes] = useState<Set<Note>>(
     () => new Set(CHROMATIC_NOTES)
   );
+  // Tracks which scale is currently driving the note selection (null = manual)
+  const [activeScale, setActiveScale] = useState<ActiveScale | null>(null);
 
-  // Re-derive the full fretboard note grid whenever tuning changes
   const fretboard = useMemo(() => buildFretboard(tuning, FRET_COUNT), [tuning]);
 
+  function handleScaleSelect(root: Note, scaleName: string, notes: Set<Note>) {
+    setActiveScale({ root, name: scaleName });
+    setActiveNotes(notes);
+  }
+
+  function clearScale() {
+    setActiveScale(null);
+    setActiveNotes(new Set(CHROMATIC_NOTES));
+  }
+
   function toggleNote(note: Note) {
+    // Manual toggle clears the scale selection
+    setActiveScale(null);
     setActiveNotes((prev) => {
       const next = new Set(prev);
       if (next.has(note)) next.delete(note);
@@ -49,6 +68,19 @@ export default function App() {
           </div>
         </section>
 
+        {/* Scale section */}
+        <section>
+          <SectionLabel>Scale</SectionLabel>
+          <div className="bg-[#161620] border border-[#252535] rounded-2xl p-5">
+            <ScaleSelector
+              selectedRoot={activeScale?.root ?? null}
+              selectedScaleName={activeScale?.name ?? null}
+              onScaleSelect={handleScaleSelect}
+              onClear={clearScale}
+            />
+          </div>
+        </section>
+
         {/* Fretboard section */}
         <section>
           <SectionLabel>Fretboard</SectionLabel>
@@ -59,13 +91,20 @@ export default function App() {
 
         {/* Note filter section */}
         <section>
-          <SectionLabel>Notes</SectionLabel>
+          <SectionLabel>
+            Notes
+            {activeScale && (
+              <span className="ml-2 text-indigo-400 normal-case tracking-normal font-medium">
+                — {activeScale.root} {activeScale.name}
+              </span>
+            )}
+          </SectionLabel>
           <div className="bg-[#161620] border border-[#252535] rounded-2xl p-5">
             <NoteFilter
               activeNotes={activeNotes}
               onToggle={toggleNote}
-              onAll={() => setActiveNotes(new Set(CHROMATIC_NOTES))}
-              onNone={() => setActiveNotes(new Set())}
+              onAll={() => { setActiveScale(null); setActiveNotes(new Set(CHROMATIC_NOTES)); }}
+              onNone={() => { setActiveScale(null); setActiveNotes(new Set()); }}
             />
           </div>
         </section>
@@ -73,7 +112,10 @@ export default function App() {
       </main>
 
       <footer className="border-t border-[#1e1e2a] px-6 py-3 text-center text-xs text-slate-600">
-        All 12 notes · {FRET_COUNT} frets · {tuning.join(' – ')}
+        {activeScale
+          ? `${activeScale.root} ${activeScale.name} · ${activeNotes.size} notes`
+          : `${activeNotes.size} / 12 notes`
+        } · {FRET_COUNT} frets · {tuning.join(' – ')}
       </footer>
     </div>
   );
@@ -82,7 +124,7 @@ export default function App() {
 /** Small uppercase section label */
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3 pl-1">
+    <h2 className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3 pl-1 flex items-center gap-1">
       {children}
     </h2>
   );
